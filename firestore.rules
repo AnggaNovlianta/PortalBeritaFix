@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global generic helpers for schema validation
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function isValidSettings(data) {
+      return data.websiteName is string && data.websiteName.size() <= 200
+        && data.companyName is string && data.companyName.size() <= 200
+        && data.companyAddress is string && data.companyAddress.size() <= 500;
+    }
+
+    function isValidMember(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.role is string && data.role.size() <= 200
+        && data.photo is string && data.photo.size() <= 1000;
+    }
+
+    function isValidArticle(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 500
+        && data.content is string && data.content.size() <= 100000
+        && data.category is string && data.category.size() <= 100
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.status is string && (data.status == 'draft' || data.status == 'scheduled' || data.status == 'published')
+        && data.publishedAt is string && data.publishedAt.size() <= 100;
+    }
+
+    function isValidComment(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.articleId is string && data.articleId.size() <= 128
+        && data.authorName is string && data.authorName.size() <= 200
+        && data.content is string && data.content.size() <= 2000
+        && data.createdAt is string && data.createdAt.size() <= 100
+        && data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected');
+    }
+
+    function isValidSubscription(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.userEmail is string && data.userEmail.size() <= 200
+        && data.plan is string && data.plan.size() <= 100
+        && data.timestamp is string && data.timestamp.size() <= 100
+        && data.amount is int && data.amount >= 0;
+    }
+
+    function isValidNotification(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.title is string && data.title.size() <= 300
+        && data.body is string && data.body.size() <= 1000
+        && data.sentAt is string && data.sentAt.size() <= 100;
+    }
+
+    // Default catch-all deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. settings collection
+    match /settings/{docId} {
+      allow read: if true;
+      allow create: if isValidSettings(request.resource.data);
+      allow update: if isValidSettings(request.resource.data) && (request.resource.data.websiteName == resource.data.websiteName);
+      allow delete: if true;
+    }
+
+    // 2. editorialTeam collection
+    match /editorialTeam/{docId} {
+      allow read: if true;
+      allow create: if isValidMember(request.resource.data);
+      allow update: if isValidMember(request.resource.data);
+      allow delete: if true;
+    }
+
+    // 3. users collection
+    match /users/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // 4. articles collection
+    match /articles/{docId} {
+      allow read: if true;
+      allow create: if isValidArticle(request.resource.data);
+      allow update: if isValidArticle(request.resource.data);
+      allow delete: if true;
+    }
+
+    // 5. comments collection
+    match /comments/{docId} {
+      allow read: if true;
+      allow create: if isValidComment(request.resource.data);
+      allow update: if isValidComment(request.resource.data);
+      allow delete: if true;
+    }
+
+    // 6. subscriptions collection
+    match /subscriptions/{docId} {
+      allow read: if true;
+      allow create: if isValidSubscription(request.resource.data);
+      allow update: if isValidSubscription(request.resource.data);
+      allow delete: if true;
+    }
+
+    // 7. notifications collection
+    match /notifications/{docId} {
+      allow read: if true;
+      allow create: if isValidNotification(request.resource.data);
+      allow update: if isValidNotification(request.resource.data);
+      allow delete: if true;
+    }
+  }
+}

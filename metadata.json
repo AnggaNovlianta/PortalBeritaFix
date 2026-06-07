@@ -1,0 +1,6 @@
+{
+  "name": "Fakta Faktual",
+  "description": "Portal berita nasional premium dan interaktif dengan live streaming, langganan berbayar, dasbor jurnalis otomatis, dan asisten AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

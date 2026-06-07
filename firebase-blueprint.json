@@ -1,0 +1,389 @@
+{
+  "entities": {
+    "WebsiteSettings": {
+      "title": "WebsiteSettings",
+      "description": "Configuration and details for the news portal agency",
+      "type": "object",
+      "properties": {
+        "websiteName": {
+          "type": "string",
+          "description": "Name of the news portal"
+        },
+        "websiteLogo": {
+          "type": "string",
+          "description": "Logo URL of the news portal"
+        },
+        "smtpHost": {
+          "type": "string",
+          "description": "SMTP Server host"
+        },
+        "smtpPort": {
+          "type": "integer",
+          "description": "SMTP Port"
+        },
+        "smtpUser": {
+          "type": "string",
+          "description": "SMTP Username"
+        },
+        "smtpPass": {
+          "type": "string",
+          "description": "SMTP Password or secret credential representation"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "PT Legal entity company name"
+        },
+        "companyAddress": {
+          "type": "string",
+          "description": "Office address"
+        },
+        "companyMapCoordinates": {
+          "type": "string",
+          "description": "Latitude and longitude coordinates"
+        },
+        "socialFb": {
+          "type": "string",
+          "description": "Facebook page URL"
+        },
+        "socialX": {
+          "type": "string",
+          "description": "X/Twitter account URL"
+        },
+        "socialIg": {
+          "type": "string",
+          "description": "Instagram profile URL"
+        },
+        "socialYt": {
+          "type": "string",
+          "description": "YouTube channel URL"
+        },
+        "adsHeader": {
+          "type": "string",
+          "description": "Ad banner image URL for header"
+        },
+        "adsSidebar": {
+          "type": "string",
+          "description": "Ad banner image URL for sidebar"
+        },
+        "adsArticleBottom": {
+          "type": "string",
+          "description": "Ad banner image URL for article section"
+        }
+      },
+      "required": [
+        "websiteName",
+        "companyName",
+        "companyAddress"
+      ]
+    },
+    "EditorialMember": {
+      "title": "EditorialMember",
+      "description": "An administrative or journalistic employee of the media mass portal",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the redactor"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the member"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role / Position in redaksi"
+        },
+        "photo": {
+          "type": "string",
+          "description": "Avatar photo URL"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role"
+      ]
+    },
+    "User": {
+      "title": "User",
+      "description": "A portal reader, registered contributor, or administrator account",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID of the user"
+        },
+        "username": {
+          "type": "string",
+          "description": "Username used for profile session"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the user"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "editor", "journalist", "contributor", "user"],
+          "description": "Access privileges designation"
+        },
+        "isPremium": {
+          "type": "boolean",
+          "description": "Subscription premium status"
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "URL of profile avatar"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "role",
+        "isPremium"
+      ]
+    },
+    "Article": {
+      "title": "Article",
+      "description": "A single news entry or essay written by journalists/contributors",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID of the article"
+        },
+        "title": {
+          "type": "string",
+          "description": "Main title headline"
+        },
+        "content": {
+          "type": "string",
+          "description": "Full markdown or text content body"
+        },
+        "summary": {
+          "type": "string",
+          "description": "A short summary paragraph of the article"
+        },
+        "category": {
+          "type": "string",
+          "description": "Visual news category classification"
+        },
+        "authorId": {
+          "type": "string",
+          "description": "User ID of the creator"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Author full name"
+        },
+        "authorRole": {
+          "type": "string",
+          "description": "Author redaksional position"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Cover hero image URL"
+        },
+        "isPremium": {
+          "type": "boolean",
+          "description": "Restricted premium access flag"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "scheduled", "published"],
+          "description": "State status of publication flow"
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO date-time string of publication"
+        },
+        "seoTitle": {
+          "type": "string",
+          "description": "Optimized metadata title"
+        },
+        "seoDescription": {
+          "type": "string",
+          "description": "Optimized metadata description"
+        },
+        "seoKeywords": {
+          "type": "array",
+          "description": "Target tags array"
+        },
+        "views": {
+          "type": "integer",
+          "description": "Page view counter"
+        },
+        "commentsCount": {
+          "type": "integer",
+          "description": "Comment list size"
+        },
+        "encryptedHash": {
+          "type": "string",
+          "description": "SHA-256 integrity ledger proof hash"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "content",
+        "category",
+        "authorId",
+        "status",
+        "publishedAt"
+      ]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A review, response, or reaction submitted on an article",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID of comment"
+        },
+        "articleId": {
+          "type": "string",
+          "description": "ID of parent article"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Commenter display name"
+        },
+        "authorEmail": {
+          "type": "string",
+          "description": "Commenter contact email"
+        },
+        "content": {
+          "type": "string",
+          "description": "Factual discussion content text"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Verification submission timestamp string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"],
+          "description": "Moderation workflow status"
+        },
+        "aiModerationScore": {
+          "type": "integer",
+          "description": "AI-moderated toxicity score"
+        },
+        "aiReason": {
+          "type": "string",
+          "description": "Moderator explanation verdict comment text"
+        }
+      },
+      "required": [
+        "id",
+        "articleId",
+        "authorName",
+        "content",
+        "createdAt",
+        "status"
+      ]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Log of successful user premium plan subscriptions",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Transaction identifier"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Subscriber account email"
+        },
+        "plan": {
+          "type": "string",
+          "description": "Subscribed billing frequency plan name"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Purchase transaction date-time signature"
+        },
+        "amount": {
+          "type": "integer",
+          "description": "Transacted IDR currency size"
+        }
+      },
+      "required": [
+        "id",
+        "userEmail",
+        "plan",
+        "timestamp",
+        "amount"
+      ]
+    },
+    "PushNotification": {
+      "title": "PushNotification",
+      "description": "Dissemination notification payload broadcast history",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique notification ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Header title of message"
+        },
+        "body": {
+          "type": "string",
+          "description": "Text descriptive body"
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Broadcasting date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "body",
+        "sentAt"
+      ]
+    }
+  },
+  "firestore": {
+    "settings": {
+      "schema": "WebsiteSettings",
+      "description": "Store application identity metadata and layout ads images"
+    },
+    "editorialTeam": {
+      "schema": "EditorialMember",
+      "description": "Store PT Fakta Media Nusantara official staff members roster"
+    },
+    "users": {
+      "schema": "User",
+      "description": "Credentials, premium tiers, and user roles permissions mappings"
+    },
+    "articles": {
+      "schema": "Article",
+      "description": "Public and premium editorial news archives"
+    },
+    "comments": {
+      "schema": "Comment",
+      "description": "Reader post replies and AI toxicity grading metadata"
+    },
+    "subscriptions": {
+      "schema": "Subscription",
+      "description": "Audited subscription transactional payments history log"
+    },
+    "notifications": {
+      "schema": "PushNotification",
+      "description": "Public broadcasted news releases notification history logs list"
+    }
+  }
+}
