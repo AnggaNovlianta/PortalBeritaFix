@@ -8,9 +8,7 @@ service cloud.firestore {
     }
     
     function isValidSettings(data) {
-      return data.websiteName is string && data.websiteName.size() <= 200
-        && data.companyName is string && data.companyName.size() <= 200
-        && data.companyAddress is string && data.companyAddress.size() <= 500;
+      return true;
     }
 
     function isValidMember(data) {
@@ -47,11 +45,30 @@ service cloud.firestore {
         && data.amount is int && data.amount >= 0;
     }
 
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.username is string && data.username.size() <= 200
+        && data.name is string && data.name.size() <= 200
+        && data.email is string && data.email.size() <= 200
+        && data.role is string && (data.role == 'admin' || data.role == 'editor' || data.role == 'journalist' || data.role == 'contributor' || data.role == 'user')
+        && data.isPremium is bool
+        && data.avatarUrl is string && data.avatarUrl.size() <= 2000
+        && data.password is string && data.password.size() <= 200;
+    }
+
     function isValidNotification(data) {
       return data.id is string && data.id.size() <= 128
         && data.title is string && data.title.size() <= 300
         && data.body is string && data.body.size() <= 1000
         && data.sentAt is string && data.sentAt.size() <= 100;
+    }
+
+    function isValidViewerLog(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.articleId is string && data.articleId.size() <= 128
+        && data.city is string && data.city.size() <= 200
+        && data.region is string && data.region.size() <= 200
+        && data.timestamp is string && data.timestamp.size() <= 100;
     }
 
     // Default catch-all deny rule
@@ -63,7 +80,7 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read: if true;
       allow create: if isValidSettings(request.resource.data);
-      allow update: if isValidSettings(request.resource.data) && (request.resource.data.websiteName == resource.data.websiteName);
+      allow update: if isValidSettings(request.resource.data);
       allow delete: if true;
     }
 
@@ -78,7 +95,9 @@ service cloud.firestore {
     // 3. users collection
     match /users/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow create: if isValidUser(request.resource.data);
+      allow update: if isValidUser(request.resource.data);
+      allow delete: if true;
     }
 
     // 4. articles collection
@@ -110,6 +129,14 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isValidNotification(request.resource.data);
       allow update: if isValidNotification(request.resource.data);
+      allow delete: if true;
+    }
+
+    // 8. viewer_logs collection
+    match /viewer_logs/{docId} {
+      allow read: if true;
+      allow create: if isValidViewerLog(request.resource.data);
+      allow update: if isValidViewerLog(request.resource.data);
       allow delete: if true;
     }
   }

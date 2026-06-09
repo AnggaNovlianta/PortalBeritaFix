@@ -354,6 +354,53 @@
         "body",
         "sentAt"
       ]
+    },
+    "ViewerLog": {
+      "title": "ViewerLog",
+      "description": "Record of a news reader visiting/viewing a news article for geo-traffic analytics",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique ID of the view log"
+        },
+        "articleId": {
+          "type": "string",
+          "description": "ID of the viewed news article"
+        },
+        "articleTitle": {
+          "type": "string",
+          "description": "Headline of the viewed news article"
+        },
+        "city": {
+          "type": "string",
+          "description": "City of the viewer visitor"
+        },
+        "region": {
+          "type": "string",
+          "description": "Province or region of the visitor"
+        },
+        "country": {
+          "type": "string",
+          "description": "Country of origin of the visitor"
+        },
+        "device": {
+          "type": "string",
+          "description": "Target device client platform"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO date-time when viewed was performed"
+        }
+      },
+      "required": [
+        "id",
+        "articleId",
+        "city",
+        "region",
+        "timestamp"
+      ]
     }
   },
   "firestore": {
@@ -384,6 +431,10 @@
     "notifications": {
       "schema": "PushNotification",
       "description": "Public broadcasted news releases notification history logs list"
+    },
+    "viewer_logs": {
+      "schema": "ViewerLog",
+      "description": "Store geographical geolocation article view logs for analytical maps dashboard"
     }
   }
 }

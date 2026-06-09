@@ -14,8 +14,12 @@ export default function MarketWidgets({ darkMode }: MarketWidgetsProps) {
     setLoading(true);
     try {
       const res = await fetch('/api/market-widgets');
-      const json = await res.json();
-      setData(json);
+      if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+        const json = await res.json();
+        setData(json);
+      } else {
+        console.warn("Retrieved invalid and non-JSON content-type from /api/market-widgets");
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -32,13 +36,13 @@ export default function MarketWidgets({ darkMode }: MarketWidgetsProps) {
   if (!data) return null;
 
   return (
-    <div id="market-ticker" className={`text-xs py-2 px-4 border-b transition-colors flex flex-wrap items-center justify-between gap-4 ${
+    <div id="market-ticker" className={`text-xs py-1.5 px-4 border-b transition-colors flex items-center justify-between gap-3 overflow-hidden ${
       darkMode 
         ? 'bg-neutral-900 border-neutral-800 text-neutral-300' 
         : 'bg-neutral-50 border-neutral-200 text-neutral-600'
     }`}>
-      {/* Real-time Ticker Items */}
-      <div className="flex flex-wrap items-center gap-6">
+      {/* Real-time Ticker Items - swipeable on smartphone and tablet screens */}
+      <div className="flex flex-nowrap items-center gap-6 overflow-x-auto scrollbar-none flex-1 select-none">
         {/* Weather Widget */}
         <div id="widget-weather" className="flex items-center gap-2">
           {data.weather.condition.includes("Hujan") ? (

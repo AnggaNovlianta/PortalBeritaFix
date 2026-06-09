@@ -1,4 +1,0 @@
-enawarkan pemandangan purbfdghm angganovliantast@gmail.com 03043150115 fiteater alam yang menawan hati petualang. Komunitas lokal berperan aktif mengelola ecotourism ramah lingkungan demi memperpanjang mata pencaharian berkelanjutan bagi warga tanpa mencederai warisan bumi UNESCO.
-Pemerintah daerah memperketat protokol zero-waste guna memastikan kelestarian keanekaragaman hayati ter
-Geopark Ciletuh menawarkan pemandangan purba spektakuler dengan amfiteater alam yang menawan hati petualang. Komunitas lokal berperan aktif mengelola ecotourism ramah lingkungan demi memperpanjang mata pencaharian berkelanjutan bagi warga tanpa mencederai warisan bumi UNESCO.
-Pemerintah daerah memperketat protokol zero-waste guna memastikan kelestarian keanekaragaman hayati terlindungi dari luapan turis mancanegara.

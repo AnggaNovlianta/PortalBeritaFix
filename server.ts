@@ -1,9 +1,31 @@
 import express from "express";
 import path from "path";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
+import { seedSeventyDummyArticles } from "./server-dummy-seeder";
+
+// In-memory registry for uploaded user avatars
+let userAvatars: Record<string, string> = {};
+const AVATARS_FILE_PATH = path.join(process.cwd(), "user_avatars.json");
+
+try {
+  if (existsSync(AVATARS_FILE_PATH)) {
+    userAvatars = JSON.parse(readFileSync(AVATARS_FILE_PATH, "utf8"));
+    console.log("[Firebase] Muat data avatar lokal berhasil, jumlah: ", Object.keys(userAvatars).length);
+  }
+} catch (err) {
+  console.error("[Firebase] Gagal memuat data avatar lokal:", err);
+}
+
+const saveLocalAvatars = () => {
+  try {
+    writeFileSync(AVATARS_FILE_PATH, JSON.stringify(userAvatars, null, 2), "utf8");
+  } catch (err) {
+    console.error("[Firebase] Gagal menyimpan data avatar lokal ke file:", err);
+  }
+};
 
 // ---------------------- Firebase Firestore Database Setup ----------------------
 import { initializeApp } from "firebase/app";
@@ -98,7 +120,67 @@ const ai = process.env.GEMINI_API_KEY
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ limit: "5mb", extended: true }));
+
+// --- SECURITY PROTOCOL: IN-MEMORY RATE LIMITING ENGINE ---
+interface RateLimitBucket {
+  tokens: number;
+  lastRefill: number;
+}
+
+const rateLimitStore = new Map<string, RateLimitBucket>();
+
+const rateLimiter = (maxRequests = 100, windowMs = 60000) => {
+  return (req: any, res: any, next: any) => {
+    // Treat 'x-forwarded-for' headers safely or fallback to req.ip
+    const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || req.ip || '127.0.0.1').split(',')[0].trim();
+    
+    // Apply rate limiter specifically to API requests API routes
+    if (!req.url.startsWith('/api')) {
+      return next();
+    }
+    
+    // Do not rate limit health check or simple GET resources excessively, but protect POST/PUT/DELETE
+    const isWriteRequest = ["POST", "PUT", "DELETE"].includes(req.method);
+    const resolvedMax = isWriteRequest ? Math.ceil(maxRequests / 3) : maxRequests; // Strict limit on writes
+
+    const now = Date.now();
+    let bucket = rateLimitStore.get(ip);
+    
+    if (!bucket) {
+      bucket = { tokens: resolvedMax, lastRefill: now };
+      rateLimitStore.set(ip, bucket);
+    } else {
+      // Calculate refilled tokens based on time elapsed
+      const timeElapsed = now - bucket.lastRefill;
+      if (timeElapsed >= windowMs) {
+        bucket.tokens = resolvedMax;
+        bucket.lastRefill = now;
+      }
+    }
+    
+    if (bucket.tokens > 0) {
+      bucket.tokens--;
+      res.setHeader('X-RateLimit-Limit', resolvedMax);
+      res.setHeader('X-RateLimit-Remaining', bucket.tokens);
+      res.setHeader('X-RateLimit-Reset-Ms', bucket.lastRefill + windowMs);
+      next();
+    } else {
+      console.warn(`[Security Alert] Rate limit exceeded by IP: ${ip} on endpoint ${req.method} ${req.originalUrl}`);
+      res.setHeader('X-RateLimit-Limit', resolvedMax);
+      res.setHeader('X-RateLimit-Remaining', 0);
+      res.setHeader('X-RateLimit-Reset-Ms', bucket.lastRefill + windowMs);
+      res.status(429).json({
+        error: "Too Many Requests",
+        message: "Lalu lintas terlalu padat dari alamat IP Anda. Demi keselamatan integrasi portal, silakan coba lagi dalam beberapa menit.",
+        retryAfterMs: Math.max(1, (bucket.lastRefill + windowMs) - now)
+      });
+    }
+  };
+};
+
+app.use(rateLimiter(90, 60000)); // Apply custom rate limit of 90 read requests/min, or 30 write requests/min
 
 // In-Memory Database State (seeded upon startup)
 let websiteSettings = {
@@ -118,7 +200,14 @@ let websiteSettings = {
   adsHeader: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=728&h=90&fit=crop&q=80",
   adsSidebar: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=300&h=250&fit=crop&q=80",
   adsArticleBottom: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=728&h=90&fit=crop&q=80",
-  categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"]
+  categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"],
+  announcement: "Fakta Faktual kini hadir dengan informasi paling presisi, tajam, dan tepercaya untuk Anda.",
+  youtubeChannelId: "UC68D_D49mI-Q2Ujhi76W2pw", // default MetroTV channel ID
+  youtubeStreamId: "5qap5aO4i9A", // default live stream or video
+  adsenseClientId: "ca-pub-1234567890123456",
+  adsenseHeaderCode: `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1234567890123456" crossorigin="anonymous"></script>`,
+  themePreset: "slate",
+  layoutPreset: "classic"
 };
 
 let editorialTeam = [
@@ -221,6 +310,24 @@ let subscriptionsList = [
 
 let pushNotificationsList: { id: string; title: string; body: string; sentAt: string }[] = [];
 
+let viewerLogs: any[] = [
+  { id: "vlog-1", articleId: "art-1", articleTitle: "Akselerasi Ekonomi Digital Nasional: Target Pertumbuhan 8% Terus Didorong", city: "Jakarta Pusat", region: "DKI Jakarta", country: "Indonesia", device: "Desktop", timestamp: "2026-06-07T08:12:00Z" },
+  { id: "vlog-2", articleId: "art-1", articleTitle: "Akselerasi Ekonomi Digital Nasional: Target Pertumbuhan 8% Terus Didorong", city: "Bandung", region: "Jawa Barat", country: "Indonesia", device: "Mobile", timestamp: "2026-06-07T07:45:00Z" },
+  { id: "vlog-3", articleId: "art-1", articleTitle: "Akselerasi Ekonomi Digital Nasional: Target Pertumbuhan 8% Terus Didorong", city: "Surabaya", region: "Jawa Timur", country: "Indonesia", device: "Mobile", timestamp: "2026-06-07T06:30:00Z" },
+  { id: "vlog-4", articleId: "art-2", articleTitle: "Energi Surya Terapung Terbesar Asia Tenggara Resmi Beroperasi di Cirata", city: "Jakarta Selatan", region: "DKI Jakarta", country: "Indonesia", device: "Desktop", timestamp: "2026-06-07T08:15:00Z" },
+  { id: "vlog-5", articleId: "art-2", articleTitle: "Energi Surya Terapung Terbesar Asia Tenggara Resmi Beroperasi di Cirata", city: "Bandung", region: "Jawa Barat", country: "Indonesia", device: "Tablet", timestamp: "2026-06-07T05:20:00Z" },
+  { id: "vlog-6", articleId: "art-3", articleTitle: "Eksplorasi Geopark Ciletuh: Mahkota Pariwisata Geologis Berkelanjutan Jawa Barat", city: "Makassar", region: "Sulawesi Selatan", country: "Indonesia", device: "Mobile", timestamp: "2026-06-07T07:11:00Z" },
+  { id: "vlog-7", articleId: "art-3", articleTitle: "Eksplorasi Geopark Ciletuh: Mahkota Pariwisata Geologis Berkelanjutan Jawa Barat", city: "Medan", region: "Sumatera Utara", country: "Indonesia", device: "Desktop", timestamp: "2026-06-07T04:55:00Z" },
+  { id: "vlog-8", articleId: "art-1", articleTitle: "Akselerasi Ekonomi Digital Nasional: Target Pertumbuhan 8% Terus Didorong", city: "Semarang", region: "Jawa Tengah", country: "Indonesia", device: "Mobile", timestamp: "2026-06-06T23:10:00Z" },
+  { id: "vlog-9", articleId: "art-2", articleTitle: "Energi Surya Terapung Terbesar Asia Tenggara Resmi Beroperasi di Cirata", city: "Yogyakarta", region: "DI Yogyakarta", country: "Indonesia", device: "Desktop", timestamp: "2026-06-06T19:44:00Z" },
+  { id: "vlog-10", articleId: "art-3", articleTitle: "Eksplorasi Geopark Ciletuh: Mahkota Pariwisata Geologis Berkelanjutan Jawa Barat", city: "Denpasar", region: "Bali", country: "Indonesia", device: "Mobile", timestamp: "2026-06-06T15:20:00Z" },
+  { id: "vlog-11", articleId: "art-1", articleTitle: "Akselerasi Ekonomi Digital Nasional: Target Pertumbuhan 8% Terus Didorong", city: "Palembang", region: "Sumatera Selatan", country: "Indonesia", device: "Tablet", timestamp: "2026-06-06T12:05:00Z" },
+  { id: "vlog-12", articleId: "art-2", articleTitle: "Energi Surya Terapung Terbesar Asia Tenggara Resmi Beroperasi di Cirata", city: "Balikpapan", region: "Kalimantan Timur", country: "Indonesia", device: "Mobile", timestamp: "2026-06-06T10:15:00Z" },
+  { id: "vlog-13", articleId: "art-3", articleTitle: "Eksplorasi Geopark Ciletuh: Mahkota Pariwisata Geologis Berkelanjutan Jawa Barat", city: "Makassar", region: "Sulawesi Selatan", country: "Indonesia", device: "Desktop", timestamp: "2026-06-06T09:30:00Z" },
+  { id: "vlog-14", articleId: "art-1", articleTitle: "Akselerasi Ekonomi Digital Nasional: Target Pertumbuhan 8% Terus Didorong", city: "Manado", region: "Sulawesi Utara", country: "Indonesia", device: "Mobile", timestamp: "2026-06-05T14:40:00Z" },
+  { id: "vlog-15", articleId: "art-2", articleTitle: "Energi Surya Terapung Terbesar Asia Tenggara Resmi Beroperasi di Cirata", city: "Pekanbaru", region: "Riau", country: "Indonesia", device: "Mobile", timestamp: "2026-06-05T11:25:00Z" }
+];
+
 // Seeding logic to populate Firestore from initial mocks if Firestore collections are empty
 async function syncAndSeedDatabase() {
   if (!db) return;
@@ -235,13 +342,20 @@ async function syncAndSeedDatabase() {
       console.log("[Firebase SEED] Memasukkan pengaturan awal portal...");
       await setDoc(settingsDocRef, websiteSettings);
     } else {
-      websiteSettings = settingsSnap.data() as typeof websiteSettings;
-      if (!websiteSettings.categories) {
+      const currentDbData = settingsSnap.data() || {};
+      websiteSettings = { ...websiteSettings, ...currentDbData };
+      
+      // Update DB if any categories are missing, or force a sync to ensure full schema compliance
+      if (!currentDbData.categories) {
         websiteSettings.categories = ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"];
-        await setDoc(settingsDocRef, websiteSettings);
-        console.log("[Firebase SYNC] Menambahkan kategori bawaan ke Firestore settings.");
       }
-      console.log("[Firebase SYNC] Pengaturan portal disinkronkan dari Firestore.");
+      
+      try {
+        await setDoc(settingsDocRef, websiteSettings);
+        console.log("[Firebase SYNC] Pengaturan portal disinkronkan dan diperbarui di Firestore.");
+      } catch (writeErr) {
+        console.error("[Firebase Error] Gagal menulis sinkronisasi settings:", writeErr);
+      }
     }
 
     // 2. Sync Editorial Team
@@ -288,9 +402,20 @@ async function syncAndSeedDatabase() {
       for (const art of articles) {
         await setDoc(doc(db, "articles", art.id), art);
       }
+      // Auto-run seventy dummy articles seeding since DB is fresh/empty
+      console.log("[Firebase SEED] Melakukan seeder otomatis 70 artikel dummy (min 500 kata per kategori)...");
+      const seedResult = await seedSeventyDummyArticles(db, articles, generateIntegrityHash);
+      console.log(`[Firebase SEED] Berhasil memasukkan ${seedResult.count} artikel berita berkualitas.`);
     } else {
       articles = articlesSnap.docs.map(d => d.data()) as typeof articles;
-      console.log("[Firebase SYNC] Arsip artikel berita disinkronkan dari Firestore.");
+      console.log("[Firebase SYNC] Arsip artikel berita disinkronkan dari Firestore, jumlah: " + articles.length);
+      
+      // If there are very few articles, let's trigger the 70 dummy articles to ensure category readiness
+      if (articles.length < 15) {
+        console.log("[Firebase SEED] Jumlah artikel sedikit (<15). Melakukan seeder otomatis 70 artikel dummy...");
+        const seedResult = await seedSeventyDummyArticles(db, articles, generateIntegrityHash);
+        console.log(`[Firebase SEED] Berhasil melengkapi ${seedResult.count} artikel berita baru.`);
+      }
     }
 
     // 5. Sync Comments
@@ -327,6 +452,19 @@ async function syncAndSeedDatabase() {
       console.log("[Firebase SYNC] Riwayat siaran notifikasi disinkronkan dari Firestore.");
     }
 
+    // 8. Sync Viewer Geolocation Logs
+    const logsColRef = collection(db, "viewer_logs");
+    const logsSnap = await getDocs(logsColRef);
+    if (logsSnap.empty) {
+      console.log("[Firebase SEED] Memasukkan log penonton/visitor simulasi...");
+      for (const log of viewerLogs) {
+        await setDoc(doc(db, "viewer_logs", log.id), log);
+      }
+    } else {
+      viewerLogs = logsSnap.docs.map(d => d.data()) as typeof viewerLogs;
+      console.log("[Firebase SYNC] Log penonton disinkronkan dari Firestore.");
+    }
+
     console.log("[Firebase] Sinkronisasi & seeding data selesai sukses!");
 
   } catch (error) {
@@ -334,29 +472,94 @@ async function syncAndSeedDatabase() {
   }
 }
 
-const getRealtimeMarketData = () => {
-  const timeSec = Math.floor(Date.now() / 10000);
-  const usdBase = 16240 + (timeSec % 37) - 18;
-  const sgdBase = 12050 + (timeSec % 13) - 6;
-  const eurBase = 17310 + (timeSec % 23) - 11;
-  const goldBase = 1342000 + (timeSec % 1000) - 500;
+let marketDataCache: any = null;
+let lastCacheTime = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minute cache to avoid rate limit or slow performance
 
-  return {
+const getRealtimeMarketDataAsync = async () => {
+  const now = Date.now();
+  if (marketDataCache && (now - lastCacheTime < CACHE_DURATION)) {
+    return marketDataCache;
+  }
+
+  const timeSec = Math.floor(now / 10000);
+  const usdFallback = 16240 + (timeSec % 37) - 18;
+  const sgdFallback = 12050 + (timeSec % 13) - 6;
+  const eurFallback = 17310 + (timeSec % 23) - 11;
+  const goldBase = 1354000 + (timeSec % 1000) - 500;
+  const tempFallback = 29 + (timeSec % 3);
+  const condFallback = (timeSec % 4 === 0) ? "Cerah Berawan" : (timeSec % 4 === 1) ? "Hujan Ringan" : "Cerah";
+
+  let usdToIdr = usdFallback;
+  let sgdToIdr = sgdFallback;
+  let eurToIdr = eurFallback;
+  let temp = tempFallback;
+  let condition = condFallback;
+  let goldPrice = goldBase;
+
+  try {
+    const ratesRes = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (ratesRes.ok) {
+      const ratesData = await ratesRes.json();
+      if (ratesData && ratesData.rates && ratesData.rates.IDR) {
+        const idrRate = ratesData.rates.IDR;
+        usdToIdr = Math.round(idrRate);
+        if (ratesData.rates.SGD) {
+          sgdToIdr = Math.round(idrRate / ratesData.rates.SGD);
+        }
+        if (ratesData.rates.EUR) {
+          eurToIdr = Math.round(idrRate / ratesData.rates.EUR);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Failed fetching live exchange rates, using fallback:", e);
+  }
+
+  try {
+    const weatherRes = await fetch("https://api.open-meteo.com/v1/forecast?latitude=-6.2088&longitude=106.8456&current=temperature_2m,weather_code");
+    if (weatherRes.ok) {
+      const weatherData = await weatherRes.json();
+      if (weatherData && weatherData.current) {
+        temp = Math.round(weatherData.current.temperature_2m);
+        const code = weatherData.current.weather_code;
+        if (code === 0) condition = "Cerah";
+        else if ([1, 2, 3].includes(code)) condition = "Cerah Berawan";
+        else if ([45, 48].includes(code)) condition = "Berkabut";
+        else if ([51, 53, 55].includes(code)) condition = "Gerimis";
+        else if ([61, 63, 65].includes(code)) condition = "Hujan";
+        else if ([80, 81, 82].includes(code)) condition = "Hujan Ringan";
+        else if ([95, 96, 99].includes(code)) condition = "Badai Petir";
+        else condition = "Berawan";
+      }
+    }
+  } catch (e) {
+    console.warn("Failed fetching live weather, using fallback:", e);
+  }
+
+  // Coup gold price realistically to usd rate with a small fluctuation factor (around 74.5 USD per gram)
+  const usdPrice = usdToIdr || 16245;
+  goldPrice = Math.round(74.5 * usdPrice + (Math.sin(now / 350000) * 9000));
+
+  marketDataCache = {
     weather: {
-      temp: 29 + (timeSec % 3),
-      condition: (timeSec % 4 === 0) ? "Cerah Berawan" : (timeSec % 4 === 1) ? "Hujan Ringan" : "Cerah",
+      temp,
+      condition,
       city: "Jakarta Pusat"
     },
     goldPrice: {
-      perGramIDR: goldBase,
-      change: "+0.45%"
+      perGramIDR: goldPrice,
+      change: (Math.sin(now / 800000) >= 0 ? "+" : "") + (Math.sin(now / 800000) * 0.9 + 0.11).toFixed(2) + "%"
     },
     kurs: {
-      usdToIdr: usdBase,
-      sgdToIdr: sgdBase,
-      eurToIdr: eurBase
+      usdToIdr,
+      sgdToIdr,
+      eurToIdr
     }
   };
+  lastCacheTime = now;
+
+  return marketDataCache;
 };
 
 // ---------------------- Express API Endpoints ----------------------
@@ -419,8 +622,13 @@ app.delete("/api/redaksi/:id", async (req, res) => {
 
 // 3. Articles (all statuses & filtering)
 app.get("/api/articles", (req, res) => {
-  const { authorId, category, search, status } = req.query;
+  const { authorId, category, search, status, page, limit, excludeId } = req.query;
   let filtered = [...articles];
+
+  // Filter out specific ID (e.g. current headline article) to avoid duplication across lists
+  if (excludeId) {
+    filtered = filtered.filter(a => a.id !== (excludeId as string));
+  }
 
   if (authorId) {
     filtered = filtered.filter(a => a.authorId === authorId);
@@ -443,6 +651,35 @@ app.get("/api/articles", (req, res) => {
   }
 
   filtered.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+  // Check if server-side pagination requested
+  if (page || limit) {
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.max(1, parseInt(limit as string) || 6);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+
+    const sliced = filtered.slice(startIndex, endIndex);
+
+    // Optimize transfer performance over slow connections by omitting the heavy `content` field.
+    // Full content is loaded on-demand via the `/api/articles/:id` detailed view API when selected.
+    const optimizedSliced = sliced.map(a => {
+      const { content, ...rest } = a;
+      return {
+        ...rest,
+        isLightweight: true
+      };
+    });
+
+    return res.json({
+      articles: optimizedSliced,
+      total: filtered.length,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.max(1, Math.ceil(filtered.length / limitNum))
+    });
+  }
+
   res.json(filtered);
 });
 
@@ -453,9 +690,31 @@ app.get("/api/articles/:id", async (req, res) => {
   }
 
   art.views += 1;
+  
+  // Extract or generate geolocation properties
+  const city = (req.query.city as string) || "Jakarta Pusat";
+  const region = (req.query.region as string) || "DKI Jakarta";
+  const country = (req.query.country as string) || "Indonesia";
+  const device = (req.query.device as string) || "Mobile";
+  const logId = "vlog-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
+  
+  const newLog = {
+    id: logId,
+    articleId: art.id,
+    articleTitle: art.title,
+    city,
+    region,
+    country,
+    device,
+    timestamp: new Date().toISOString()
+  };
+
+  viewerLogs.push(newLog);
+
   if (db) {
     try {
       await setDoc(doc(db, "articles", art.id), art);
+      await setDoc(doc(db, "viewer_logs", logId), newLog);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `articles/${art.id}`);
     }
@@ -524,6 +783,21 @@ app.post("/api/articles", async (req, res) => {
   }
 
   res.json({ message: "Beritanya berhasil disimpan", article: newArt });
+});
+
+app.post("/api/seed-dummy-articles", async (req, res) => {
+  try {
+    console.log("[Seeder API] Permintaan memicu pembuatan dummy artikel diterima.");
+    const seedResult = await seedSeventyDummyArticles(db, articles, generateIntegrityHash);
+    res.json({
+      success: true,
+      count: seedResult.count,
+      messages: seedResult.messages
+    });
+  } catch (error) {
+    console.error("[Seeder API] Error saat melakukan seeding artikel:", error);
+    res.status(500).json({ error: "Gagal memproses seeding artikel: " + (error instanceof Error ? error.message : String(error)) });
+  }
 });
 
 app.put("/api/articles/:id", async (req, res) => {
@@ -598,18 +872,47 @@ app.get("/api/comments", (req, res) => {
   res.json(filtered);
 });
 
+/**
+ * Sanitasi super ketat (keras) untuk mencegah celah keamanan XSS pada komentar
+ */
+function sanitizeXSS(input: string): string {
+  if (typeof input !== 'string') return '';
+  
+  // Deteksi dan bersihkan tag script serta isinya sepenuhnya (case-insensitive)
+  let cleaned = input.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  
+  // Konversi karakter khusus HTML ke HTML entities untuk menetralkan elemen HTML apa pun
+  return cleaned
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+    .replace(/\//g, "&#x2F;");
+}
+
 app.post("/api/comments", async (req, res) => {
   const { articleId, authorName, authorEmail, content } = req.body;
   if (!articleId || !authorName || !content) {
     return res.status(400).json({ error: "Artikel ID, nama, dan komentar wajib diisi" });
   }
 
+  // Sanitasi input tingkat tinggi (keras) untuk mencegah celah keamanan XSS
+  const sanitizedAuthorName = sanitizeXSS(authorName).trim();
+  const sanitizedAuthorEmail = sanitizeXSS(authorEmail || '').trim();
+  const sanitizedContent = sanitizeXSS(content).trim();
+
+  // Validasi kembali untuk memastikan input tidak kosong setelah dibersihkan
+  if (!sanitizedAuthorName || !sanitizedContent) {
+    return res.status(400).json({ error: "Nama pengirim atau komentar tidak valid setelah penyaringan keamanan" });
+  }
+
   const newComment = {
     id: "com-" + Date.now(),
     articleId,
-    authorName,
-    authorEmail: authorEmail || "pembaca@faktafaktual.id",
-    content,
+    authorName: sanitizedAuthorName,
+    authorEmail: sanitizedAuthorEmail || "pembaca@faktafaktual.id",
+    content: sanitizedContent,
     createdAt: new Date().toISOString(),
     status: (websiteSettings.websiteName === "Fakta Faktual") ? ("pending" as const) : ("approved" as const),
     aiModerationScore: undefined,
@@ -695,8 +998,9 @@ app.get("/api/analytics/:authorId", (req, res) => {
 });
 
 // 6. Markets Real-time endpoint
-app.get("/api/market-widgets", (req, res) => {
-  res.json(getRealtimeMarketData());
+app.get("/api/market-widgets", async (req, res) => {
+  const liveData = await getRealtimeMarketDataAsync();
+  res.json(liveData);
 });
 
 // 7. Subscribe Payments
@@ -917,11 +1221,13 @@ app.post("/api/push-notifications/send", async (req, res) => {
 app.get("/api/stream-status", (req, res) => {
   res.json({
     online: true,
-    channelName: "MetroNusa Live Streaming HD",
+    channelName: websiteSettings.websiteName + " TV Live Streaming HD",
     streamUrl: "https://vjs.zencdn.net/v/oceans.mp4",
     viewersCount: 24508,
     activeResolution: "1080p 60fps",
-    encryptionStatus: "AES-128 Stream Encrypted"
+    encryptionStatus: "AES-128 Stream Encrypted",
+    youtubeChannelId: websiteSettings.youtubeChannelId || "",
+    youtubeStreamId: websiteSettings.youtubeStreamId || ""
   });
 });
 
@@ -935,13 +1241,55 @@ app.get("/api/security-logs", (req, res) => {
   ]);
 });
 
+// 12b. Viewer Logs API (Dashboard Analytics)
+app.get("/api/viewer-logs", async (req, res) => {
+  if (db) {
+    try {
+      const logsColRef = collection(db, "viewer_logs");
+      const logsSnap = await getDocs(logsColRef);
+      if (!logsSnap.empty) {
+        const liveLogs = logsSnap.docs.map(doc => doc.data());
+        return res.json(liveLogs);
+      }
+    } catch (err) {
+      console.error("[Firebase] Gagal mengambil log penonton live dari Firestore:", err);
+    }
+  }
+  res.json(viewerLogs);
+});
+
 // 13. User & Password Management (Admin Feature)
 app.get("/api/users", (req, res) => {
   res.json(users);
 });
 
+app.get("/api/users/avatar/:id", (req, res) => {
+  const { id } = req.params;
+  const avatarData = userAvatars[id];
+
+  if (avatarData) {
+    try {
+      const matches = avatarData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const contentType = matches[1];
+        const base64Data = matches[2];
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+        return res.send(imageBuffer);
+      }
+    } catch (err) {
+      console.error("[Avatar Server] Gagal parsing base64 avatar:", err);
+    }
+  }
+
+  // Fallback to default Unsplash profile placeholder
+  res.redirect("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&fit=crop&q=80");
+});
+
 app.post("/api/users", async (req, res) => {
-  const { name, email, role, avatarUrl, password } = req.body;
+  const { name, email, role, avatarUrl, avatarData, password } = req.body;
   if (!email || !name) {
     return res.status(400).json({ error: "Nama dan email wajib diisi!" });
   }
@@ -951,15 +1299,26 @@ app.post("/api/users", async (req, res) => {
     return res.status(400).json({ error: "Surel / Email sudah terdaftar!" });
   }
 
+  const userId = "u-" + Date.now();
+  let finalAvatarUrl = avatarUrl;
+
+  if (avatarData) {
+    userAvatars[userId] = avatarData;
+    saveLocalAvatars();
+    finalAvatarUrl = `/api/users/avatar/${userId}`;
+  } else if (!finalAvatarUrl) {
+    finalAvatarUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&fit=crop&q=80";
+  }
+
   const username = email.split("@")[0];
   const newUser = {
-    id: "u-" + Date.now(),
+    id: userId,
     username,
     name,
     email,
     role: role || "user",
     isPremium: role === "admin" || role === "editor",
-    avatarUrl: avatarUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&fit=crop&q=80",
+    avatarUrl: finalAvatarUrl,
     password: password || "pembaca123"
   };
 
@@ -1001,22 +1360,198 @@ app.put("/api/users/:id/password", async (req, res) => {
   res.json({ message: "Password berhasil diperbarui!", user: users[userIdx] });
 });
 
+app.put("/api/users/:id/avatar", async (req, res) => {
+  const { id } = req.params;
+  const { avatarData } = req.body;
+  if (!avatarData) {
+    return res.status(400).json({ error: "Data foto profil kosong!" });
+  }
+
+  const userIdx = users.findIndex(u => u.id === id);
+  if (userIdx === -1) {
+    return res.status(404).json({ error: "Pengguna tidak ditemukan!" });
+  }
+
+  // Simpan data avatar base64 secara lokal
+  userAvatars[id] = avatarData;
+  saveLocalAvatars();
+
+  const finalAvatarUrl = `/api/users/avatar/${id}`;
+  users[userIdx].avatarUrl = finalAvatarUrl;
+
+  if (db) {
+    try {
+      await setDoc(doc(db, "users", id), users[userIdx]);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${id}`);
+    }
+  }
+
+  res.json({ message: "Foto profil berhasil diperbarui!", user: users[userIdx], avatarUrl: finalAvatarUrl });
+});
+
+app.delete("/api/users/:id", async (req, res) => {
+  const { id } = req.params;
+  const requesterRole = req.headers["x-requester-role"] || req.query.requesterRole || req.body?.requesterRole;
+  const requesterId = req.headers["x-requester-id"] || req.query.requesterId || req.body?.requesterId;
+
+  // Temukan pengguna yang ingin dihapus
+  const targetUserIdx = users.findIndex(u => u.id === id);
+  if (targetUserIdx === -1) {
+    return res.status(404).json({ error: "Pengguna tidak ditemukan!" });
+  }
+
+  const targetUser = users[targetUserIdx];
+
+  // 1. Jika target adalah admin, userlain (bukan admin) tidak bisa menghapus admin tersebut
+  if (targetUser.role === "admin" && requesterRole !== "admin") {
+    return res.status(403).json({ error: "Akses ditolak! Anda tidak diizinkan menghapus pengguna dengan peran Admin." });
+  }
+
+  // 2. Hanya admin portal yang diizinkan menghapus pengguna lain secara umum
+  if (requesterRole !== "admin") {
+    return res.status(403).json({ error: "Akses ditolak! Hanya Admin Portal yang diizinkan menghapus pengguna." });
+  }
+
+  // Mencegah admin menghapus akunnya sendiri secara langsung dari panel ini
+  if (id === requesterId) {
+    return res.status(400).json({ error: "Anda tidak dapat menghapus akun Anda sendiri secara langsung dari panel ini!" });
+  }
+
+  // Lakukan penghapusan
+  users.splice(targetUserIdx, 1);
+
+  // Bersihkan data avatar lokal jika ada
+  if (userAvatars[id]) {
+    delete userAvatars[id];
+    saveLocalAvatars();
+  }
+
+  if (db) {
+    try {
+      await deleteDoc(doc(db, "users", id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `users/${id}`);
+    }
+  }
+
+  res.json({ message: "Pengguna berhasil dihapus!" });
+});
+
+// HTML dynamic metadata injection handler for WhatsApp/social previews
+const serveHtmlWithMeta = async (req: express.Request, res: express.Response, next: express.NextFunction, viteInstance?: any) => {
+  try {
+    const isProd = process.env.NODE_ENV === "production";
+    let filePath = isProd 
+      ? path.join(process.cwd(), "dist", "index.html") 
+      : path.join(process.cwd(), "index.html");
+
+    if (!existsSync(filePath)) {
+      filePath = path.join(process.cwd(), "index.html");
+    }
+
+    let html = readFileSync(filePath, "utf8");
+
+    // Transform HTML with Vite in development mode to retain HMR scripts
+    if (!isProd && viteInstance) {
+      html = await viteInstance.transformIndexHtml(req.originalUrl, html);
+    }
+
+    const articleId = req.query.article as string;
+    const art = articles.find(a => a.id === articleId);
+
+    if (art) {
+      const ogTitle = art.title;
+      const ogDesc = art.summary || art.content.slice(0, 160) + "...";
+      const ogImg = art.imageUrl || "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=100&auto=format&fit=crop&q=80";
+      const protocol = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+      const host = req.headers.host || "faktafaktual.id";
+      const ogUrl = `${protocol}://${host}${req.originalUrl}`;
+
+      const metaHtml = `
+    <title>${ogTitle.replace(/"/g, '&quot;')} - Fakta Faktual</title>
+    <meta name="description" content="${ogDesc.replace(/"/g, '&quot;')}" />
+    <meta property="og:title" content="${ogTitle.replace(/"/g, '&quot;')}" />
+    <meta property="og:description" content="${ogDesc.replace(/"/g, '&quot;')}" />
+    <meta property="og:image" content="${ogImg}" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="${ogUrl}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${ogTitle.replace(/"/g, '&quot;')}" />
+    <meta name="twitter:description" content="${ogDesc.replace(/"/g, '&quot;')}" />
+    <meta name="twitter:image" content="${ogImg}" />
+      `;
+      html = html.replace("<head>", `<head>${metaHtml}`);
+      html = html.replace(/<title>.*?<\/title>/, "");
+    } else {
+      const title = websiteSettings.websiteName || "Fakta Faktual";
+      const logo = websiteSettings.websiteLogo || "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=100&auto=format&fit=crop&q=80";
+      const desc = websiteSettings.announcement || "Portal Berita Nasional Terpercaya";
+      const protocol = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+      const host = req.headers.host || "faktafaktual.id";
+      const ogUrl = `${protocol}://${host}${req.originalUrl}`;
+
+      const metaHtml = `
+    <title>${title}</title>
+    <meta name="description" content="${desc.replace(/"/g, '&quot;')}" />
+    <meta property="og:title" content="${title}" />
+    <meta property="og:description" content="${desc.replace(/"/g, '&quot;')}" />
+    <meta property="og:image" content="${logo}" />
+    <meta property="og:url" content="${ogUrl}" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content="${logo}" />
+      `;
+      html = html.replace("<head>", `<head>${metaHtml}`);
+      html = html.replace(/<title>.*?<\/title>/, "");
+    }
+
+    res.status(200).set({ "Content-Type": "text/html" }).end(html);
+  } catch (err) {
+    console.error("Error serving HTML with metadata:", err);
+    next(err);
+  }
+};
+
 // Vite middleware for development or serving assets in production
 async function startServer() {
-  // Sync and seed Firestore database before starting the router listeners
-  await syncAndSeedDatabase();
+  // Sync and seed Firestore database asynchronously in the background to prevent blocking port 3000 binding
+  syncAndSeedDatabase()
+    .then(() => {
+      console.log("[Firebase] Sinkronisasi & seeding data selesai sukses di background!");
+    })
+    .catch((err) => {
+      console.error("[Firebase] Gagal sinkronisasi data di background:", err);
+    });
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
+
+    // Handle root / and index.html loads dynamically with metadata
+    app.get(["/", "/index.html"], (req, res, next) => {
+      serveHtmlWithMeta(req, res, next, vite);
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+
+    // Dynamic SEO loads on production
+    app.get(["/", "/index.html"], (req, res, next) => {
+      serveHtmlWithMeta(req, res, next);
+    });
+
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+
+    app.get("*", (req, res, next) => {
+      if (req.headers.accept && req.headers.accept.includes("text/html")) {
+        serveHtmlWithMeta(req, res, next);
+      } else {
+        res.sendFile(path.join(distPath, "index.html"));
+      }
     });
   }
 

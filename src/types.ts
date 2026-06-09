@@ -29,6 +29,13 @@ export interface WebSettings {
   adsSidebar: string;
   adsArticleBottom: string;
   categories: string[];
+  announcement?: string;
+  youtubeChannelId?: string;
+  youtubeStreamId?: string;
+  adsenseClientId?: string;
+  adsenseHeaderCode?: string;
+  themePreset?: 'slate' | 'emerald' | 'amber' | 'indigo' | 'crimson';
+  layoutPreset?: 'classic' | 'editorial' | 'bento';
 }
 
 export interface Article {
