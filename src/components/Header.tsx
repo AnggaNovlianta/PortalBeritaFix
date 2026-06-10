@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, Moon, Search, LogIn, LogOut, User as UserIcon, Shield, Radio, Landmark, Users2, Info, Building, ArrowLeft, Plus, Check, Mail, X, Trash2, Bookmark, Menu } from 'lucide-react';
+import { Sun, Moon, Search, LogIn, LogOut, User as UserIcon, Shield, Radio, Landmark, Users2, Info, Building, ArrowLeft, Plus, Check, Mail, X, Trash2, Bookmark, Menu, Newspaper } from 'lucide-react';
 import { User, WebSettings, Article } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -132,13 +132,19 @@ export default function Header({
           className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-3 md:gap-4 cursor-pointer select-none shrink-0 justify-center text-center"
           onClick={() => setActiveSection('home')}
         >
-          <img 
-            id="web-logo"
-            src={websiteSettings.websiteLogo} 
-            alt="Logo" 
-            referrerPolicy="no-referrer"
-            className={`h-14 w-14 sm:h-16 sm:w-16 object-cover rounded-xl shadow-lg border-2 ${themeAccent.borderMuted} transition-all duration-300`}
-          />
+          {websiteSettings.websiteLogo ? (
+            <img 
+              id="web-logo"
+              src={websiteSettings.websiteLogo} 
+              alt="Logo" 
+              referrerPolicy="no-referrer"
+              className={`h-14 w-14 sm:h-16 sm:w-16 object-cover rounded-xl shadow-lg border-2 ${themeAccent.borderMuted} transition-all duration-300`}
+            />
+          ) : (
+            <div className={`h-14 w-14 sm:h-16 sm:w-16 rounded-xl flex items-center justify-center bg-gradient-to-br ${themeAccent.badgeGrad} border-2 ${themeAccent.borderMuted} shadow-lg shrink-0`}>
+              <Newspaper className="text-white" size={24} />
+            </div>
+          )}
           <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
             <h1 id="web-name" className="text-lg xs:text-xl sm:text-2xl md:text-4xl font-extrabold md:font-black tracking-tighter leading-none flex items-center justify-center sm:justify-start">
               <span className={themeAccent.text}>{firstWord}</span>

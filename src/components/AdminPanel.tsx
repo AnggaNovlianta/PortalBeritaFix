@@ -99,7 +99,7 @@ export default function AdminPanel({
   const [layoutPreset, setLayoutPreset] = useState<'classic' | 'editorial' | 'bento'>(websiteSettings.layoutPreset || 'classic');
 
   // Category management hooks
-  const [categories, setCategories] = useState<string[]>(websiteSettings.categories || ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"]);
+  const [categories, setCategories] = useState<string[]>(websiteSettings.categories || ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan", "Kesehatan", "Gaya Hidup", "Edukasi", "Otomotif", "Opini", "Nasional", "Kriminal"]);
   const [newCatInput, setNewCatInput] = useState('');
 
   // Success Indicators

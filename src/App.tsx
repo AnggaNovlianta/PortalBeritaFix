@@ -76,7 +76,7 @@ export default function App() {
     adsHeader: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=728&h=90&fit=crop&q=80",
     adsSidebar: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=300&h=250&fit=crop&q=80",
     adsArticleBottom: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=728&h=90&fit=crop&q=80",
-    categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"],
+    categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan", "Kesehatan", "Gaya Hidup", "Edukasi", "Otomotif", "Opini", "Nasional", "Kriminal"],
     announcement: "Fakta Faktual kini hadir dengan informasi paling presisi, tajam, dan tepercaya untuk Anda.",
     youtubeChannelId: "UC68D_D49mI-Q2Ujhi76W2pw",
     youtubeStreamId: "5qap5aO4i9A",
@@ -222,7 +222,7 @@ export default function App() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [editorialTeam, setEditorialTeam] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Active view details state
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
@@ -519,7 +519,7 @@ export default function App() {
       const setData = await fetchJsonResilient('/api/settings', {
         websiteName: "Fakta Faktual",
         websiteLogo: "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=100&auto=format&fit=crop&q=80",
-        categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"],
+        categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan", "Kesehatan", "Gaya Hidup", "Edukasi", "Otomotif", "Opini", "Nasional", "Kriminal"],
         announcement: "Fakta Faktual kini hadir dengan informasi paling presisi, tajam, dan tepercaya untuk Anda.",
         themePreset: "slate",
         layoutPreset: "classic"
@@ -1272,7 +1272,7 @@ export default function App() {
         ref={categoryScrollRef}
         className="flex-1 flex items-center gap-1.5 overflow-x-auto pb-1.5 pt-0.5 border-b border-slate-200 dark:border-neutral-800 scrollbar-none scroll-smooth"
       >
-        {['Semua', ...(currentUser ? ['Berita untuk Anda'] : []), ...(websiteSettings.categories || ['Politik', 'Ekonomi', 'Teknologi', 'Pariwisata', 'Olahraga', 'Internasional', 'Hiburan'])].map((cat) => (
+        {['Semua', ...(currentUser ? ['Berita untuk Anda'] : []), ...(websiteSettings.categories || ['Politik', 'Ekonomi', 'Teknologi', 'Pariwisata', 'Olahraga', 'Internasional', 'Hiburan', 'Kesehatan', 'Gaya Hidup', 'Edukasi', 'Otomotif', 'Opini', 'Nasional', 'Kriminal'])].map((cat) => (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -2109,6 +2109,24 @@ export default function App() {
   // Find viewed article context
   const selectedArticle = articles.find(a => a.id === selectedArticleId);
   const activeArticleComments = comments.filter(c => c.articleId === selectedArticleId && c.status === 'approved');
+
+  if (loading) {
+    return (
+      <div className={`min-h-screen flex flex-col items-center justify-center transition-colors duration-250 ${
+        darkMode ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-slate-800'
+      }`}>
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="relative flex items-center justify-center">
+            <div className="absolute h-12 w-12 rounded-full border-4 border-blue-500/20 animate-pulse" />
+            <div className="relative h-12 w-12 rounded-full border-5 border-blue-600 border-t-transparent animate-spin" />
+          </div>
+          <span className="text-xs uppercase font-black tracking-widest text-neutral-400 animate-pulse">
+            Memuat Portal Berita...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen font-sans antialiased transition-colors duration-250 ${

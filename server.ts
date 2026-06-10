@@ -200,7 +200,7 @@ let websiteSettings = {
   adsHeader: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=728&h=90&fit=crop&q=80",
   adsSidebar: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=300&h=250&fit=crop&q=80",
   adsArticleBottom: "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=728&h=90&fit=crop&q=80",
-  categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"],
+  categories: ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan", "Kesehatan", "Gaya Hidup", "Edukasi", "Otomotif", "Opini", "Nasional", "Kriminal"],
   announcement: "Fakta Faktual kini hadir dengan informasi paling presisi, tajam, dan tepercaya untuk Anda.",
   youtubeChannelId: "UC68D_D49mI-Q2Ujhi76W2pw", // default MetroTV channel ID
   youtubeStreamId: "5qap5aO4i9A", // default live stream or video
@@ -346,8 +346,8 @@ async function syncAndSeedDatabase() {
       websiteSettings = { ...websiteSettings, ...currentDbData };
       
       // Update DB if any categories are missing, or force a sync to ensure full schema compliance
-      if (!currentDbData.categories) {
-        websiteSettings.categories = ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"];
+      if (!currentDbData.categories || currentDbData.categories.length < 10) {
+        websiteSettings.categories = ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan", "Kesehatan", "Gaya Hidup", "Edukasi", "Otomotif", "Opini", "Nasional", "Kriminal"];
       }
       
       try {

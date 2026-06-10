@@ -979,7 +979,7 @@ export default function WriterStudio({
                       : 'border-slate-200 bg-white text-slate-900 shadow-sm focus:border-blue-600'
                   }`}
                 >
-                  {(websiteSettings.categories || ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan"]).map((cat) => (
+                  {(websiteSettings.categories || ["Politik", "Ekonomi", "Teknologi", "Pariwisata", "Olahraga", "Internasional", "Hiburan", "Kesehatan", "Gaya Hidup", "Edukasi", "Otomotif", "Opini", "Nasional", "Kriminal"]).map((cat) => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
